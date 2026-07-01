@@ -1,0 +1,12 @@
+.agents/
+.vscode/
+*.log
+logs/
+log/
+__pycache__/
+*.pyc
+*.pt
+*.pth
+*.npy
+*.png
+*.docx
