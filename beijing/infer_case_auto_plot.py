@@ -63,6 +63,8 @@ def parse_args():
     parser.add_argument("--ty_name", type=str, default="default")
     parser.add_argument("--ty_number", type=str, default="20260001")
     parser.add_argument("--report_time", type=str, default="2026010100")
+    parser.add_argument("--engname", type=str, default="")
+    parser.add_argument("--tfbh", type=str, default="")
     args = parser.parse_args()
     return args
 
@@ -201,6 +203,75 @@ def format_report_time(report_time: str) -> str:
     # return dt.strftime("%Y%m%d%H")
 
 
+def get_storm_code(args) -> str:
+    code = str(args.tfbh or "").strip()
+    if not code:
+        ty_number = str(args.ty_number or "").strip()
+        code = (
+            ty_number[-4:] if ty_number.isdigit() and len(ty_number) > 4 else ty_number
+        )
+    code = "".join(ch for ch in code if ch.isalnum())
+    return code or "UNKNOWN"
+
+
+def get_storm_name(args, storm_code: str) -> str:
+    engname = str(args.engname or "").strip()
+    ty_name = str(args.ty_name or "").strip()
+    if engname:
+        return engname.upper()
+    if ty_name and ty_name.lower() != "default":
+        return ty_name.upper()
+    return storm_code
+
+
+def parse_report_time_parts(report_time: str):
+    formatted_time = format_report_time(report_time)
+    if len(formatted_time) < 10:
+        raise ValueError(f"Invalid report_time: {report_time}")
+    return (
+        formatted_time,
+        formatted_time[:4],
+        formatted_time[4:6],
+        formatted_time[6:8],
+        formatted_time[8:10],
+    )
+
+
+def get_initial_position(X_sample, mask_sample):
+    try:
+        lead_time = X_sample[:, :, 1]
+        lat = X_sample[:, :, 2]
+        lon = X_sample[:, :, 3]
+        valid = (
+            (mask_sample > 0) & (torch.abs(lead_time) < 1e-2) & (lat != 0) & (lon != 0)
+        )
+        if not torch.any(valid):
+            valid = (mask_sample > 0) & (lat != 0) & (lon != 0)
+            if not torch.any(valid):
+                return None
+            first_lead = torch.min(lead_time[valid])
+            valid = valid & (torch.abs(lead_time - first_lead) < 1e-2)
+        return float(torch.mean(lat[valid].float()).item()), float(
+            torch.mean(lon[valid].float()).item()
+        )
+    except Exception as e:
+        logger.warning(f"Failed to extract initial position: {e}")
+        return None
+
+
+def write_dat_file(save_path, storm_name, storm_code, report_time, records):
+    _, year, month, day, hour = parse_report_time_parts(report_time)
+    with open(save_path, "w", encoding="gb18030") as f:
+        f.write(f"diamond 7 {storm_code}\u53f7\u53f0\u98ce\u8def\u5f84\n")
+        f.write(f"{storm_name:<16}{storm_code:>4}   1{len(records):13d}\n\n")
+        for lead, lat, lon in records:
+            f.write(
+                f"  {year}  {month}  {day}  {hour}  {int(lead):03d}"
+                f"{lon:14.1f}{lat:13.1f}{0.0:11.1f}{0.0:11.1f}"
+                f"{0.0:8.1f}{0.0:10.1f}{0.0:10.1f}{0.0:10.1f}\n"
+            )
+
+
 if __name__ == "__main__":
     args = parse_args()
     logger.info(f"启动推理脚本，参数: {vars(args)}")
@@ -232,6 +303,7 @@ if __name__ == "__main__":
         X_test1 = X_test_inst[isample].unsqueeze(0).float()
         X_test_mask0 = X_test_mask[isample].unsqueeze(0).float()
         sample_results = []
+        sample_leads = []
         sample_all = []
         for t in pre_priod:
             logger.info(f"-----------pre_{t}----------")
@@ -262,9 +334,11 @@ if __name__ == "__main__":
             pred = tester.run_inference(input_data, mask_test, t)
             if pred is not None:
                 sample_results.append(pred)
+                sample_leads.append(t)
             else:
                 logger.warning(f"时效 {t} 推理失败，填充零向量")
                 sample_results.append(np.zeros((1, 2)))
+                sample_leads.append(t)
 
         if not sample_results:
             logger.warning(f"样本 {isample + 1} 没有生成任何有效预测，跳过保存")
@@ -273,29 +347,50 @@ if __name__ == "__main__":
             all_samples_concat = np.concatenate(
                 sample_all, axis=1
             )  # 假设每个元素是 [1,1,9,2]
-            save_path = os.path.join(
-                args.data_path, f"all_samples_{args.ty_number}_{args.report_time}.npy"
-            )
+            os.makedirs(path, exist_ok=True)
+            save_path = os.path.join(path, "result.npy")
             np.save(save_path, all_samples_concat)
             print(
                 f"✅ 保存 all_samples 总文件: {save_path}, 形状: {all_samples_concat.shape}"
             )
+        # 拼接所有样本的预测结果
         final_array = np.concatenate(sample_results, axis=0)
-        utc_now_str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        formatted_time = format_report_time(args.report_time)
+
+        # 解析并格式化起报时间
+        formatted_time, *_ = parse_report_time_parts(args.report_time)
         print(formatted_time)
-        txt_filename = f"T_SEVP_C_SCSIOEns_{utc_now_str}_P_TYPHOON_TF_{args.ty_number}_{formatted_time}.txt"
+
+        # 获取台风编号和名称
+        storm_code = get_storm_code(args)
+        storm_name = get_storm_name(args, storm_code)
+
+        # 构建 .dat 文件的输出路径，确保目录存在
+        dat_filename = f"{storm_code}_AI-TRANS_{formatted_time}.dat"
         output_dir = os.path.join("./output", str(args.ty_number))
         os.makedirs(output_dir, exist_ok=True)
-        save_path = os.path.join(output_dir, txt_filename)
+        save_path = os.path.join(output_dir, dat_filename)
+
+        dat_records = []
+
+        # 提取台风初始位置并写入时效为 0 的记录
+        initial_position = get_initial_position(
+            X_test1.squeeze(0), X_test_mask0.squeeze(0)
+        )
+        if initial_position is not None:
+            initial_lat, initial_lon = initial_position
+            dat_records.append((0, initial_lat, initial_lon))
+
+        # 将各个预报时效及对应的经纬度结果追加到记录列表
+        for lead, (lat, lon) in zip(sample_leads, final_array):
+            dat_records.append((lead, float(lat), float(lon)))
+
+        # 将完整轨迹数据写入文件
         try:
-            with open(save_path, "w", encoding="utf-8") as f:
-                for i, t in enumerate(pre_priod):
-                    lat, lon = final_array[i]
-                    line = f"P+{t:02d}HR {lat:.1f}  {lon:.1f}\n"
-                    f.write(line)
+            write_dat_file(
+                save_path, storm_name, storm_code, args.report_time, dat_records
+            )
             logger.info(
-                f"✅ Prediction saved! File: {txt_filename}, Shape: {final_array.shape}"
+                f"✅ Prediction saved! File: {dat_filename}, Shape: {final_array.shape}"
             )
         except Exception as e:
             logger.exception(f"保存文件失败: {e}")

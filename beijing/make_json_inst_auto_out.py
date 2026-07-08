@@ -1,7 +1,6 @@
 ﻿import os
 import sys
 import json
-import logging
 import requests
 import numpy as np
 import torch
@@ -31,44 +30,6 @@ FCST_CODES = {
     "日本": "RJTDSUBJ",
     "美国": "PGTWSUBJ",
 }
-
-
-# =====================================================
-# 日志配置 (同时输出到控制台和文件)
-# =====================================================
-def setup_logger():
-    """初始化并配置日志记录器。"""
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    log_filename = os.path.join(log_dir, f"log_{datetime.now().strftime('%Y%m%d')}.log")
-
-    logger = logging.getLogger("TyphoonProcessor")
-    logger.setLevel(logging.INFO)  # 日常运行建议设为 INFO，排查具体数据时可改为 DEBUG
-
-    # 避免重复添加 handler 导致日志重复打印
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    # 文件 handler：将日志写入每天的文件
-    file_handler = logging.FileHandler(log_filename, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)  # 文件里可以记录更详细的 DEBUG 信息
-    file_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s"
-    )
-    file_handler.setFormatter(file_formatter)
-
-    # 控制台 handler：在终端输出日志
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)  # 控制台保持清爽，只看 INFO 以上
-    console_handler.setFormatter(file_formatter)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
-
-
-logger = setup_logger()
 
 
 # =====================================================
@@ -120,10 +81,7 @@ def infer_fcst_code(payload):
             if isinstance(value, list):
                 return str(key).upper()
 
-    # 【日志注入点】推断失败通常意味着上游 API 接口数据结构发生了重大变化
-    logger.error(
-        f"无法从 payload 中推断出 FCSTType, payload 键值: {list(payload.keys())}"
-    )
+    print(f"[ERROR] 无法从 payload 中推断出 FCSTType, payload 键值: {list(payload.keys())}")
     raise ValueError("Cannot infer FCSTType from JSON.")
 
 
@@ -135,12 +93,10 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
     # 统一格式化目标起报时间
     normalized_report_time = normalize_report_time(report_time)
     if not normalized_report_time:
-        # 【日志注入点】关键参数缺失拦截
-        logger.error("缺少必要的 report_time 参数！")
+        print("[ERROR] 缺少必要的 report_time 参数！")
         raise ValueError("report_time is required.")
 
-    # 【日志注入点】记录函数入口和核心参数
-    logger.info(f"开始解析多模式预报数据，目标起报时间: {normalized_report_time}")
+    print(f"[INFO] 开始解析多模式预报数据，目标起报时间: {normalized_report_time}")
 
     records_by_model = []  # 用于存储各个机构清洗后的时序预报记录
     max_timesteps = 0  # 记录所有机构中最长的预报时效步数（序列长度T）
@@ -149,29 +105,21 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
     for institution in INSTITUTIONS:
         fcst_code = FCST_CODES.get(institution)
         if not fcst_code:
-            logger.warning(
-                f"机构 {institution} 在 FCST_CODES 字典中找不到对应的代码，保留空位。"
-            )
+            print(f"[WARNING] 机构 {institution} 在 FCST_CODES 字典中找不到对应的代码，保留空位。")
             records_by_model.append([])
             continue
 
         records = []
-
-        # 安全地从 JSON 响应中提取当前机构的数据列表
         response_json = response_by_fcst_code.get(fcst_code) if fcst_code else None
 
         if not response_json:
-            # 【日志注入点】某些机构没返回数据是常态，用 debug 或 info 记录即可，不要用 error
-            logger.info(f"数据源中未包含机构 {institution}({fcst_code}) 的预报数据。")
             data_list = []
         else:
             data_list = (
                 response_json.get("data", []) if isinstance(response_json, dict) else []
             )
             if not isinstance(data_list, list):
-                logger.warning(
-                    f"机构 {institution}({fcst_code}) 返回的 'data' 字段不是列表格式！"
-                )
+                print(f"[WARNING] 机构 {institution}({fcst_code}) 返回的 'data' 字段不是列表格式！")
                 data_list = []
 
         # 遍历数据列表，提取核心预报记录
@@ -182,8 +130,6 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
             if isinstance(value, list):
                 records.extend(record for record in value if isinstance(record, dict))
 
-        logger.debug(f"机构 {institution} 提取到原始轨迹点共 {len(records)} 个。")
-
         # 2. 筛选特定起报时间的记录
         records = [
             record
@@ -192,9 +138,6 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
         ]
 
         if not records:
-            logger.debug(
-                f"机构 {institution} 在指定时间 {normalized_report_time} 下没有预报轨迹点。"
-            )
             records_by_model.append([])
             continue
 
@@ -210,30 +153,17 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
         seen_hours = set()
         for fcsthour, record in sortable_records:
             if fcsthour in seen_hours:
-                logger.debug(
-                    f"机构 {institution} 发现重复的预报时效 {fcsthour}h，已去重。"
-                )
                 continue  # 如果同一预报时效有多条记录，只保留第一条
             seen_hours.add(fcsthour)
             deduped_records.append(record)
 
         records_by_model.append(deduped_records)
         max_timesteps = max(max_timesteps, len(deduped_records))  # 更新全局最大时间步长
-        logger.info(
-            f"机构 {institution} 解析完成，共获取 {len(deduped_records)} 个有效预报时效。"
-        )
 
     # 如果所有机构都没有有效数据，直接返回 None
     if max_timesteps == 0:
-        # 【日志注入点】这是业务层面的“空跑”，非常重要，需要警告
-        logger.warning(
-            f"所有机构在 {normalized_report_time} 时刻均无有效预报数据，函数将返回 None。"
-        )
+        print(f"[WARNING] 所有机构在 {normalized_report_time} 时刻均无有效预报数据，函数将返回 None。")
         return None, None, None
-
-    logger.debug(
-        f"所有机构数据提取完毕，全局最大时间步长 max_timesteps = {max_timesteps}"
-    )
 
     feature_list = []
     mask_list = []
@@ -272,11 +202,6 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
             is_valid = not np.isnan(lat) and not np.isnan(lon)
             model_mask[t] = is_valid
 
-            if not is_valid:
-                logger.debug(
-                    f"机构 {institution_name} 在 fcsthour={fcsthour} 时经纬度数据无效(lat={lat}, lon={lon})，mask 设为 False"
-                )
-
         feature_list.append(features)
         mask_list.append(model_mask)
 
@@ -300,10 +225,7 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
         if len(valid_idx) > 0:
             y[0, t, 0, 3] = X[0, t, valid_idx[0], 1]
 
-    # 【日志注入点】成功出口，打印张量形状，方便核对深度学习模型输入层维度
-    logger.info(
-        f"张量构建成功！最终输出形状 -> X: {X.shape}, mask: {mask.shape}, y: {y.shape}"
-    )
+    print(f"[INFO] 张量构建成功！最终输出形状 -> X: {X.shape}, mask: {mask.shape}, y: {y.shape}")
 
     return X, mask, y
 
@@ -403,10 +325,9 @@ def fetch_and_process(
     if access_key is None:
         try:
             from key import generate_access_key
-
             access_key = generate_access_key(user_id, security_key)
         except ImportError:
-            logger.error("无法导入 key.py 模块或 generate_access_key 函数。")
+            print("[ERROR] 无法导入 key.py 模块或 generate_access_key 函数。")
             return []
 
     headers = {"typhoon-access-key": access_key}
@@ -417,16 +338,16 @@ def fetch_and_process(
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
     except Exception as e:
-        logger.error(f"获取台风编号列表失败: {e}")
+        print(f"[ERROR] 获取台风编号列表失败: {e}")
         return []
 
     data = response.json()
 
     # 筛选活跃台风并保留元数据
     typhoon_infos = extract_typhoon_info_by_zone(data)
-    logger.info(f"待处理的台风列表: {typhoon_infos}")
+    print(f"[INFO] 待处理的台风列表: {typhoon_infos}")
     if not typhoon_infos:
-        logger.info("没有符合条件的台风需要处理")
+        print("[INFO] 没有符合条件的台风需要处理")
         return []
 
     url_subjective = (
@@ -440,18 +361,17 @@ def fetch_and_process(
         typhoon_code = typhoon_info["xuhao"]
         engname = typhoon_info["engname"]
         tfbh = typhoon_info["tfbh"]
-        logger.info(
-            f"\n正在处理台风编号: {typhoon_code}, engname: {engname}, tfbh: {tfbh}"
-        )
+        
+        print(f"\n" + "="*50)
+        print(f"[INFO] 正在处理台风编号: {typhoon_code}, engname: {engname}, tfbh: {tfbh}")
 
         # 格式化时间字符串作为文件夹名称 (避免包含非法字符)
         report_time = normalize_report_time(data_time)
         if not report_time:
-            logger.error("data_time 不能为空")
+            print("[ERROR] data_time 不能为空")
             return success_codes
 
         safe_time = report_time.replace(" ", "-").replace(":", "-")
-        logger.info(f"安全目录时间: {safe_time}")
 
         # 设定本地保存路径
         save_dir = os.path.join(BASE_DIR, "data", str(typhoon_code), safe_time)
@@ -459,7 +379,7 @@ def fetch_and_process(
 
         # 检查是否已经处理过此文件
         if all(os.path.exists(os.path.join(save_dir, name)) for name in expected_files):
-            logger.info(f"台风 {typhoon_code} 时次 {report_time} 已处理过，跳过")
+            print(f"[INFO] 台风 {typhoon_code} 时次 {report_time} 已处理过，跳过")
             continue
 
         # 循环请求 8 家主观预报机构，按 FCSTType code 暂存响应
@@ -467,7 +387,6 @@ def fetch_and_process(
         for institution in INSTITUTIONS:
             center_code = FCST_CODES.get(institution)
             if not center_code:
-                logger.info(f"机构 {institution} 暂无 fcstType code，保留空位")
                 continue
 
             payload = {
@@ -484,23 +403,17 @@ def fetch_and_process(
                     timeout=30,
                 )
                 if resp.status_code != 200:
-                    logger.error(
-                        f"请求 {institution}({center_code}) 失败: {resp.status_code}"
-                    )
+                    print(f"[ERROR] 请求 {institution}({center_code}) 失败: {resp.status_code}")
                     continue
 
                 center_data = resp.json()
                 if center_data.get("code") != 200:
-                    logger.error(
-                        f"{institution}({center_code}) API错误: "
-                        f"code={center_data.get('code')}, msg={center_data.get('msg')}"
-                    )
+                    print(f"[ERROR] {institution}({center_code}) API错误: code={center_data.get('code')}, msg={center_data.get('msg')}")
                     continue
 
                 response_by_fcst_code[center_code] = center_data
-                logger.info(f"获取 {institution}({center_code}) 数据成功")
             except Exception as e:
-                logger.error(f"请求 {institution}({center_code}) 预报数据异常: {e}")
+                print(f"[ERROR] 请求 {institution}({center_code}) 预报数据异常: {e}")
                 continue
 
         # 3. 将原始 JSON 解析为深度学习所需的特征矩阵
@@ -509,12 +422,8 @@ def fetch_and_process(
             report_time=report_time,
         )
         if X is None:
-            logger.warning(f"台风 {typhoon_code} 数据解析失败，X is None，跳过")
+            print(f"[WARNING] 台风 {typhoon_code} 数据解析失败，X is None，跳过")
             continue
-
-        logger.info(f"X shape: {X.shape}")
-        logger.info(f"mask shape: {mask.shape}")
-        logger.info(f"y shape: {y.shape}")
 
         # 4. 保存 Tensor 为文件
         os.makedirs(save_dir, exist_ok=True)
@@ -522,16 +431,15 @@ def fetch_and_process(
         torch.save(torch.tensor(mask), os.path.join(save_dir, "x_masks.pt"))
         torch.save(torch.tensor(y), os.path.join(save_dir, "y.pt"))
 
-        logger.info(f"台风 {typhoon_code} 数据保存成功 -> {os.path.abspath(save_dir)}")
+        print(f"[SUCCESS] 台风 {typhoon_code} 数据已保存至 -> {os.path.abspath(save_dir)}")
 
         # 记录处理成功的台风信息
         success_codes.append((typhoon_code, safe_time, engname, tfbh))
 
-    logger.info(f"\n处理完成，成功保存的台风: {success_codes}")
+    print(f"\n[INFO] 处理完成，成功保存的台风: {success_codes}")
     return success_codes
 
 
 if __name__ == "__main__":
     start_time = "2026-06-04 00:00:00"
     result = fetch_and_process(start_time)
-    logger.info(f"最终结果: {result}")
