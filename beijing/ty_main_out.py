@@ -5,7 +5,7 @@ import traceback
 import logging
 import sys
 from pathlib import Path
-import make_json_inst_auto
+import make_json_inst_auto_out
 
 current_dir = Path(__file__).resolve().parent
 
@@ -83,7 +83,7 @@ def run_once(report_time):
     try:
         logger.info(f"开始请求数据（拉起子进程）: {report_time}")
 
-        success_list = make_json_inst_auto.fetch_and_process(report_time)
+        success_list = make_json_inst_auto_out.fetch_and_process(report_time)
         # xuhao_list = [20260045]  # 您的自定义列表（覆盖返回值）
         if not success_list:
             logger.warning("没有需要处理的台风")

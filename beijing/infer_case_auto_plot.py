@@ -351,7 +351,7 @@ if __name__ == "__main__":
             save_path = os.path.join(path, "result.npy")
             np.save(save_path, all_samples_concat)
             print(
-                f"✅ 保存 all_samples 总文件: {save_path}, 形状: {all_samples_concat.shape}"
+                f"保存 all_samples 总文件: {save_path}, 形状: {all_samples_concat.shape}"
             )
         # 拼接所有样本的预测结果
         final_array = np.concatenate(sample_results, axis=0)
@@ -390,7 +390,7 @@ if __name__ == "__main__":
                 save_path, storm_name, storm_code, args.report_time, dat_records
             )
             logger.info(
-                f"✅ Prediction saved! File: {dat_filename}, Shape: {final_array.shape}"
+                f"Prediction saved! File: {dat_filename}, Shape: {final_array.shape}"
             )
         except Exception as e:
             logger.exception(f"保存文件失败: {e}")

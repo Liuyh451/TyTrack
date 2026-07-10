@@ -169,8 +169,7 @@ def parse_subjective_to_fixed_institutions(response_by_fcst_code, report_time=No
     mask_list = []
 
     # 4. 构建特征矩阵 (Features) 和 掩码矩阵 (Mask)
-    for i, records in enumerate(records_by_model):
-        institution_name = INSTITUTIONS[i]
+    for records in records_by_model:
         # 初始化当前机构的特征矩阵 [T, 6] (6个气象特征) 和掩码 [T]
         features = np.zeros((max_timesteps, 6), dtype=np.float32)
         model_mask = np.zeros(max_timesteps, dtype=bool)
@@ -243,6 +242,29 @@ def _has_zone(typhoon: Dict[str, Any], zone: str = "W") -> bool:
     return False
 
 
+def _find_nested_value(typhoon: Dict[str, Any], key: str, zone: str = "W") -> str:
+    """从发报中心数组里提取台风元信息，比如 tfbh/engname。"""
+    value = typhoon.get(key)
+    if value not in (None, ""):
+        return str(value)
+
+    for item in typhoon.values():
+        if not isinstance(item, list):
+            continue
+
+        for record in item:
+            if not isinstance(record, dict):
+                continue
+            if zone and record.get("zone") != zone:
+                continue
+
+            value = record.get(key)
+            if value not in (None, ""):
+                return str(value)
+
+    return ""
+
+
 def extract_typhoon_info_by_zone(
     data: Union[str, Dict[str, Any]], zone: str = "W"
 ) -> List[Dict[str, str]]:
@@ -259,11 +281,7 @@ def extract_typhoon_info_by_zone(
         xuhao = typhoon.get("xuhao")
         if xuhao is None:
             continue
-
-        # 仅保留活跃状态的台风
-        if typhoon.get("activityTyphoon") is False:
-            continue
-
+        
         # 检查是否在目标区域内
         if not _has_zone(typhoon, zone):
             continue
@@ -271,8 +289,11 @@ def extract_typhoon_info_by_zone(
         typhoon_infos.append(
             {
                 "xuhao": str(xuhao),
-                "engname": str(typhoon.get("engname") or ""),
-                "tfbh": str(typhoon.get("tfbh") or ""),
+                "engname": (
+                    str(typhoon.get("engname") or typhoon.get("enname") or "")
+                    or _find_nested_value(typhoon, "engname", zone)
+                ),
+                "tfbh": _find_nested_value(typhoon, "tfbh", zone),
             }
         )
 
@@ -282,34 +303,6 @@ def extract_typhoon_info_by_zone(
 # =====================================================
 # API 交互与主流程
 # =====================================================
-def parse_latest_ensemble_time(response_json: Dict[str, Any]) -> Optional[str]:
-    """从 API 响应中解析并返回最新的集合预报时间。"""
-    if response_json.get("code") != 200:
-        return None
-
-    data = response_json.get("data")
-    if not isinstance(data, dict):
-        return None
-
-    data_times = data.get("dataTime", [])
-    if not isinstance(data_times, list) or not data_times:
-        return None
-
-    valid_times = []
-    for time_str in data_times:
-        if not isinstance(time_str, str):
-            continue
-        try:
-            # 验证时间格式是否合法
-            datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            continue
-        valid_times.append(time_str)
-
-    # 返回最大的时间字符串（即最新时间）
-    return max(valid_times) if valid_times else None
-
-
 
 def fetch_and_process(
     data_time: str,
@@ -333,7 +326,7 @@ def fetch_and_process(
     headers = {"typhoon-access-key": access_key}
 
     # 1. 获取活跃台风列表
-    url = "http://10.40.168.50:28000/cmes-typhoonOcean-internal/api/tcRealtime/getActiveTyphoon"
+    url = "http://106.120.73.242/wg-cmes/cmes-typhoonocean-internal/api/tcRealtime/getActiveTyphoon"
     try:
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
@@ -342,7 +335,6 @@ def fetch_and_process(
         return []
 
     data = response.json()
-
     # 筛选活跃台风并保留元数据
     typhoon_infos = extract_typhoon_info_by_zone(data)
     print(f"[INFO] 待处理的台风列表: {typhoon_infos}")
@@ -351,8 +343,7 @@ def fetch_and_process(
         return []
 
     url_subjective = (
-        "http://10.40.168.50:28000/"
-        "cmes-typhoonOcean/api/tcRealtime/getTyphoonInfoByTypeAndTime/"
+        "http://106.120.73.242/wg-cmes/cmes-typhoonocean-internal/api/tcRealtime/getTyphoonInfoByTypeAndTime"
     )
     success_codes = []
 
@@ -367,6 +358,7 @@ def fetch_and_process(
 
         # 格式化时间字符串作为文件夹名称 (避免包含非法字符)
         report_time = normalize_report_time(data_time)
+        print(f"[INFO] 使用的起报时间: {report_time}")
         if not report_time:
             print("[ERROR] data_time 不能为空")
             return success_codes
@@ -392,14 +384,14 @@ def fetch_and_process(
             payload = {
                 "xuhao": typhoon_code,
                 "fcstType": center_code,
-                "time": report_time,
+                "dataTime": report_time,
             }
             try:
                 resp = requests.request(
                     "GET",
                     url_subjective,
                     headers=headers,
-                    data=payload,
+                    params=payload,
                     timeout=30,
                 )
                 if resp.status_code != 200:
@@ -430,7 +422,7 @@ def fetch_and_process(
         torch.save(torch.tensor(X), os.path.join(save_dir, "x_results.pt"))
         torch.save(torch.tensor(mask), os.path.join(save_dir, "x_masks.pt"))
         torch.save(torch.tensor(y), os.path.join(save_dir, "y.pt"))
-
+        print(X.shape, mask.shape, y.shape)
         print(f"[SUCCESS] 台风 {typhoon_code} 数据已保存至 -> {os.path.abspath(save_dir)}")
 
         # 记录处理成功的台风信息
@@ -441,5 +433,5 @@ def fetch_and_process(
 
 
 if __name__ == "__main__":
-    start_time = "2026-06-04 00:00:00"
+    start_time = "2026-07-09 00:00:00"
     result = fetch_and_process(start_time)
