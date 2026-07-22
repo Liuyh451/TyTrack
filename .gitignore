@@ -10,3 +10,4 @@ __pycache__/
 *.npy
 *.png
 *.docx
+*.txt

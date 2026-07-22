@@ -1,0 +1,267 @@
+{
+  "first_seen": {
+    "20260054|2026-07-13 06:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-13 06:00:00",
+      "delay_hours": 13.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-13 00:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-13 00:00:00",
+      "delay_hours": 19.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RKSLWTKO",
+        "FENGQING",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-12 18:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-12 18:00:00",
+      "delay_hours": 25.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RKSLWTKO",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-12 12:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-12 12:00:00",
+      "delay_hours": 31.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RKSLWTKO",
+        "FENGQING",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-12 06:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-12 06:00:00",
+      "delay_hours": 37.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RKSLWTKO",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-12 00:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-12 00:00:00",
+      "delay_hours": 43.905,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RKSLWTKO",
+        "FENGQING",
+        "VHHHWTSS",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260059|2026-07-13 06:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-13 06:00:00",
+      "delay_hours": 13.905,
+      "xuhao": "20260059",
+      "engname": "HAISHEN",
+      "tfbh": "2611",
+      "available_institutions": [
+        "RKSLWTKO",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260059|2026-07-13 00:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-13 00:00:00",
+      "delay_hours": 19.905,
+      "xuhao": "20260059",
+      "engname": "HAISHEN",
+      "tfbh": "2611",
+      "available_institutions": [
+        "FENGQING",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260058|2026-07-13 00:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-13 00:00:00",
+      "delay_hours": 19.905,
+      "xuhao": "20260058",
+      "engname": "CP-90",
+      "tfbh": "",
+      "available_institutions": [
+        "FENGQING"
+      ]
+    },
+    "20260058|2026-07-12 12:00:00": {
+      "first_seen_at": "2026-07-13 19:54:18",
+      "report_time": "2026-07-12 12:00:00",
+      "delay_hours": 31.905,
+      "xuhao": "20260058",
+      "engname": "CP-90",
+      "tfbh": "",
+      "available_institutions": [
+        "FENGQING"
+      ]
+    },
+    "20260054|2026-07-13 12:00:00": {
+      "first_seen_at": "2026-07-13 20:54:56",
+      "report_time": "2026-07-13 12:00:00",
+      "delay_hours": 8.916,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260059|2026-07-13 12:00:00": {
+      "first_seen_at": "2026-07-13 21:55:18",
+      "report_time": "2026-07-13 12:00:00",
+      "delay_hours": 9.922,
+      "xuhao": "20260059",
+      "engname": "HAISHEN",
+      "tfbh": "2611",
+      "available_institutions": [
+        "RKSLWTKO",
+        "BABJWTPQ",
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-13 18:00:00": {
+      "first_seen_at": "2026-07-14 02:57:36",
+      "report_time": "2026-07-13 18:00:00",
+      "delay_hours": 8.96,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260059|2026-07-13 18:00:00": {
+      "first_seen_at": "2026-07-14 02:57:36",
+      "report_time": "2026-07-13 18:00:00",
+      "delay_hours": 8.96,
+      "xuhao": "20260059",
+      "engname": "HAISHEN",
+      "tfbh": "2611",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260058|2026-07-13 12:00:00": {
+      "first_seen_at": "2026-07-14 03:57:56",
+      "report_time": "2026-07-13 12:00:00",
+      "delay_hours": 15.966,
+      "xuhao": "20260058",
+      "engname": "CP-90",
+      "tfbh": "",
+      "available_institutions": [
+        "FENGQING"
+      ]
+    },
+    "20260054|2026-07-14 00:00:00": {
+      "first_seen_at": "2026-07-14 08:59:58",
+      "report_time": "2026-07-14 00:00:00",
+      "delay_hours": 8.999,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260059|2026-07-14 00:00:00": {
+      "first_seen_at": "2026-07-14 08:59:58",
+      "report_time": "2026-07-14 00:00:00",
+      "delay_hours": 8.999,
+      "xuhao": "20260059",
+      "engname": "HAISHEN",
+      "tfbh": "2611",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260054|2026-07-14 06:00:00": {
+      "first_seen_at": "2026-07-14 15:02:37",
+      "report_time": "2026-07-14 06:00:00",
+      "delay_hours": 9.044,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "BABJWTPQ"
+      ]
+    },
+    "20260058|2026-07-14 00:00:00": {
+      "first_seen_at": "2026-07-14 16:03:13",
+      "report_time": "2026-07-14 00:00:00",
+      "delay_hours": 16.054,
+      "xuhao": "20260058",
+      "engname": "CP-90",
+      "tfbh": "",
+      "available_institutions": [
+        "FENGQING"
+      ]
+    },
+    "20260054|2026-07-14 12:00:00": {
+      "first_seen_at": "2026-07-14 22:05:31",
+      "report_time": "2026-07-14 12:00:00",
+      "delay_hours": 10.092,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RJTDSUBJ"
+      ]
+    },
+    "20260054|2026-07-14 18:00:00": {
+      "first_seen_at": "2026-07-15 04:07:59",
+      "report_time": "2026-07-14 18:00:00",
+      "delay_hours": 10.133,
+      "xuhao": "20260054",
+      "engname": "BAVI",
+      "tfbh": "2609",
+      "available_institutions": [
+        "RJTDSUBJ"
+      ]
+    },
+    "20260058|2026-07-14 12:00:00": {
+      "first_seen_at": "2026-07-15 04:07:59",
+      "report_time": "2026-07-14 12:00:00",
+      "delay_hours": 16.133,
+      "xuhao": "20260058",
+      "engname": "CP-90",
+      "tfbh": "",
+      "available_institutions": [
+        "FENGQING"
+      ]
+    }
+  }
+}

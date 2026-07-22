@@ -7,8 +7,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
-import get_real_track_until_report_time as REAL_TRACK
-import evaluate_mde as MDE_EVALUATOR
 
 # 获取当前脚本所在绝对路径
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -18,10 +16,8 @@ YEAR_LIST_URL = "https://cdn.oss.wushikj.com/data/typhoon/year/{year}.json"
 DETAIL_URL = "https://cdn.oss.wushikj.com/data/typhoon/{year}/{typhoon_id}.json"
 # 每天固定的四个起报时间（北京时间）
 REPORT_HOURS = (2, 8, 14, 20)
-REAL_TRACK_LOOKBACK_STEPS = 4
 # 推理所需的核心样本文件清单
 SAMPLE_FILES = ("x.npy", "x_masks.npy", "y.npy")
-MDE_LOOKBACK_REPORTS = 0
 
 
 class TyphoonTaskError(Exception):
@@ -173,54 +169,6 @@ def inference_output_exists(ty_code, report_key):
     return len(matches) > 0
 
 
-def select_real_track_points(payload, report_dt, steps=REAL_TRACK_LOOKBACK_STEPS):
-    for index in range(steps):
-        observation_dt = report_dt - timedelta(hours=6 * index)
-        points = REAL_TRACK.extract_real_track(
-            payload, observation_dt.strftime("%Y%m%d%H")
-        )
-        expected_time = observation_dt.strftime("%Y-%m-%d %H:%M:%S")
-        if points and points[-1]["time"] == expected_time:
-            return points, observation_dt
-    return [], None
-
-
-def fetch_real_track(ty_code, report_dt, output_path):
-    normalized_ty_code = REAL_TRACK.normalize_ty_code(ty_code)
-    report_key = report_dt.strftime("%Y%m%d%H")
-    try:
-        payload = REAL_TRACK.load_typhoon_json(normalized_ty_code)
-        points, observation_dt = select_real_track_points(payload, report_dt)
-        if observation_dt is None:
-            LOGGER.warning(
-                "real track unavailable in fallback window: "
-                "typhoon=%s requested_report_time=%s",
-                normalized_ty_code,
-                report_key,
-            )
-            return None
-        added_count = REAL_TRACK.save_track_txt(points, output_path)
-        LOGGER.info(
-            "real track updated: typhoon=%s requested_report_time=%s "
-            "observation_time=%s received=%s appended=%s path=%s",
-            normalized_ty_code,
-            report_key,
-            observation_dt.strftime("%Y%m%d%H"),
-            len(points),
-            added_count,
-            output_path,
-        )
-        return output_path
-    except Exception as exc:
-        LOGGER.warning(
-            "real track fetch failed: typhoon=%s report_time=%s reason=%s",
-            normalized_ty_code,
-            report_key,
-            exc,
-        )
-        return None
-
-
 def run_inference(typhoon, sample_dir, report_key):
     """调用真实推理脚本，推理脚本结构保持不动，只调整输入参数。"""
     try:
@@ -268,34 +216,6 @@ def run_inference(typhoon, sample_dir, report_key):
         )
 
 
-def run_mde_evaluation(ty_code, report_key, real_track_path):
-    try:
-        result = MDE_EVALUATOR.evaluate_recent_forecasts(
-            ty_code=ty_code,
-            current_report_time=report_key,
-            npy_root=SCRIPT_DIR / "output_npy",
-            real_track_path=real_track_path,
-            eval_root=SCRIPT_DIR / "eval",
-            lookback=MDE_LOOKBACK_REPORTS,
-        )
-        LOGGER.info(
-            "MDE evaluation complete: typhoon=%s report_time=%s forecasts=%s "
-            "matched=%s added=%s csv=%s",
-            ty_code,
-            report_key,
-            result["forecast_count"],
-            result["matched_count"],
-            result["added_count"],
-            result["csv_path"],
-        )
-    except Exception:
-        LOGGER.exception(
-            "MDE evaluation failed: typhoon=%s report_time=%s",
-            ty_code,
-            report_key,
-        )
-
-
 def process_one_typhoon(typhoon, report_dt):
     # 获取当前台风编号及目标起报时间字符串格式
     ty_code = str(typhoon["ty_code"])
@@ -303,9 +223,6 @@ def process_one_typhoon(typhoon, report_dt):
     
     # 确定样本存放路径
     sample_dir = sample_dir_for(typhoon, report_key)
-    normalized_ty_code = REAL_TRACK.normalize_ty_code(ty_code)
-    real_track_path = sample_dir.parent / f"real_track_{normalized_ty_code}.txt"
-    fetch_real_track(ty_code, report_dt, real_track_path)
 
     # 检查样本是否已存在，不存在则请求 API 拉取数据
     if sample_exists(sample_dir):
@@ -339,8 +256,6 @@ def process_one_typhoon(typhoon, report_dt):
             ty_code,
             report_key,
         )
-
-    run_mde_evaluation(ty_code, report_key, real_track_path)
 
 
 def run_once(now=None):

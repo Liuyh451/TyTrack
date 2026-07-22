@@ -116,12 +116,12 @@ def parse_args():
     )
     parser.add_argument(
         "--ty_code",
-        default="2607",
+        default="2611",
         help="Typhoon code, for example 202608.",
     )
     parser.add_argument(
         "--report_time",
-        default="2026-06-30 08:00:00",
+        default="2026-07-15 08:00:00",
         help="Cutoff time in Beijing time, for example 2026-06-23 12:00:00.",
     )
     parser.add_argument(

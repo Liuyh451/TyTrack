@@ -8,6 +8,7 @@ from urllib.request import urlopen
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 DEFAULT_URL_TEMPLATE = "https://cdn.oss.wushikj.com/data/typhoon/{year}/{ty_code}.json"
+TRACK_HEADER = "time lat lng power speed pressure strong\n"
 
 
 def normalize_ty_code(ty_code) -> str:
@@ -99,15 +100,41 @@ def extract_real_track(payload: dict, report_time: str) -> list[dict]:
     return sorted(points, key=lambda point: point["time"])
 
 
-def save_track_txt(points: list[dict], output_path: Path) -> None:
+def load_existing_track_times(output_path: Path) -> set[str]:
+    if not output_path.exists():
+        return set()
+
+    existing_times = set()
+    with output_path.open("r", encoding="utf-8-sig") as f:
+        for raw_line in f:
+            fields = raw_line.split()
+            if len(fields) >= 2 and fields[0] != "time":
+                existing_times.add(f"{fields[0]} {fields[1]}")
+    return existing_times
+
+
+def save_track_txt(points: list[dict], output_path: Path) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as f:
-        f.write("time lat lng power speed pressure strong\n")
+    existing_times = load_existing_track_times(output_path)
+    needs_header = not output_path.exists() or output_path.stat().st_size == 0
+    added_count = 0
+
+    with output_path.open("a", encoding="utf-8") as f:
+        if needs_header:
+            f.write(TRACK_HEADER)
         for point in points:
+            point_time = point["time"]
+            if point_time in existing_times:
+                continue
+
             f.write(
-                f"{point['time']} {point['lat']:.1f} {point['lng']:.1f} "
+                f"{point_time} {point['lat']:.1f} {point['lng']:.1f} "
                 f"{point['power']} {point['speed']} {point['pressure']} {point['strong']}\n"
             )
+            existing_times.add(point_time)
+            added_count += 1
+
+    return added_count
 
 
 def parse_args():
@@ -133,7 +160,7 @@ def parse_args():
         "--output",
         type=Path,
         default=None,
-        help="Output txt path. Defaults to output/<ty_code>/real_track_<ty_code>_<report_time>.txt.",
+        help="Output txt path. Defaults to data/<ty_code>_<ename>/real_track_<ty_code>.txt.",
     )
     return parser.parse_args()
 
@@ -146,14 +173,18 @@ def main():
 
     output_path = args.output
     if output_path is None:
+        ty_name = str(payload.get("ename") or ty_code).lower().strip()
         output_path = (
-            Path("output")
-            / ty_code
-            / f"real_track_{ty_code}_{format_report_time(args.report_time)}.txt"
+            Path("data")
+            / f"{ty_code}_{ty_name}"
+            / f"real_track_{ty_code}.txt"
         )
 
-    save_track_txt(points, output_path)
-    print(f"Saved {len(points)} real track points -> {output_path}")
+    added_count = save_track_txt(points, output_path)
+    print(
+        f"Loaded {len(points)} real track points, appended {added_count} new points "
+        f"-> {output_path}"
+    )
 
 
 if __name__ == "__main__":

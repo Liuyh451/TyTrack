@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import logging
+import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,13 @@ REPORT_HOURS = (2, 8, 14, 20)
 REAL_TRACK_LOOKBACK_STEPS = 4
 # 推理所需的核心样本文件清单
 SAMPLE_FILES = ("x.npy", "x_masks.npy", "y.npy")
+TEST_TY_CODE = "2609"
+TEST_REPORT_TIME = "2026071008"
+MODEL_RUNTIME_DIR = SCRIPT_DIR.parent / "beijing"
 MDE_LOOKBACK_REPORTS = 0
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
 
 
 class TyphoonTaskError(Exception):
@@ -77,9 +84,16 @@ LOGGER = setup_logger()
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run active typhoon task once.")
-    # 生产环境不用传参数；这个参数只用于本地复现某个当前时间。
-    parser.add_argument("--now", help="Test time, e.g. 202606241849.")
+    parser = argparse.ArgumentParser(description="Run the typhoon test case or live task.")
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Run the original active-typhoon scheduler instead of the fixed test case.",
+    )
+    parser.add_argument(
+        "--now",
+        help="Current Beijing time used with --live, e.g. 202606241849.",
+    )
     return parser.parse_args()
 
 
@@ -169,7 +183,11 @@ def inference_output_exists(ty_code, report_key):
 
     # 匹配结尾是 _{report_key}.txt 的文件
     # 例如: T_SEVP_C_SCSIOEns_20260624130327_P_TYPHOON_TF_202608_2026062414.txt
-    matches = list(output_dir.glob(f"*_{report_key}.txt"))
+    matches = [
+        path
+        for path in output_dir.glob(f"*_{report_key}.txt")
+        if not path.name.startswith("real_track_")
+    ]
     return len(matches) > 0
 
 
@@ -236,12 +254,24 @@ def run_inference(typhoon, sample_dir, report_key):
             str(typhoon.get("ename") or typhoon["ty_code"]),
             "--report_time",
             report_key,
+            "--trgpath",
+            str(MODEL_RUNTIME_DIR / "checkpoints"),
         ]
+
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = os.pathsep.join(
+            path
+            for path in (str(MODEL_RUNTIME_DIR), existing_pythonpath)
+            if path
+        )
+        env["PYTHONIOENCODING"] = "utf-8"
         
         # 启动子进程执行推理脚本
         result = subprocess.run(
             cmd,
             cwd=str(SCRIPT_DIR),
+            env=env,
             capture_output=True, # 捕获标准输出和标准错误
             text=True,           # 以字符串形式返回输出
             encoding="utf-8",
@@ -382,11 +412,33 @@ def run_once(now=None):
             LOGGER.exception("typhoon failed: typhoon=%s", typhoon.get("ty_code"))
 
 
+def run_test_case():
+    ty_code = REAL_TRACK.normalize_ty_code(TEST_TY_CODE)
+    report_dt = datetime.strptime(TEST_REPORT_TIME, "%Y%m%d%H")
+    detail_url = DETAIL_URL.format(year=ty_code[:4], typhoon_id=ty_code)
+    payload = fetch_json(detail_url)
+    typhoon = {
+        "ty_code": str(payload.get("ty_code") or ty_code),
+        "ename": str(payload.get("ename") or ty_code),
+    }
+
+    LOGGER.info(
+        "test mode: typhoon=%s(%s) report_time=%s",
+        typhoon["ty_code"],
+        typhoon["ename"],
+        TEST_REPORT_TIME,
+    )
+    process_one_typhoon(typhoon, report_dt)
+
+
 def main():
     # 脚本的主入口点
     try:
         args = parse_args()
-        run_once(parse_now(args.now))
+        if args.live:
+            run_once(parse_now(args.now))
+        else:
+            run_test_case()
     except Exception:
         LOGGER.exception("task failed")
 
